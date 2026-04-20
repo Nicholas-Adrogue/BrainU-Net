@@ -37,8 +37,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.cluster import SpectralClustering
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tqdm import tqdm
-import warnings
-warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
 
 # ╔═══════════════════════════════════════════════════════════════════════════════╗
 # ║  CONFIGURATION                                                               ║
@@ -467,7 +465,42 @@ def step1_build_arrays():
     print(f'  Scans  : {two_ch_scans.shape}  (channels: grayscale + cluster)')
     print(f'  Masks  : {seg_masks.shape}')
     print(f'  Labels : {targets.shape}')
+
+    # Cache arrays to disk so --step 2 can skip clustering
+    cache_dir = os.path.join(RESULTS_DIR, 'cached_arrays')
+    os.makedirs(cache_dir, exist_ok=True)
+    np.save(os.path.join(cache_dir, 'scans.npy'),  two_ch_scans)
+    np.save(os.path.join(cache_dir, 'masks.npy'),   seg_masks)
+    np.save(os.path.join(cache_dir, 'targets.npy'), targets)
+    # Save display_labels as text
+    with open(os.path.join(cache_dir, 'display_labels.txt'), 'w') as f:
+        f.write('\n'.join(display_labels))
+    print(f'  Cached arrays to {cache_dir}/')
+
     return two_ch_scans, seg_masks, targets, display_labels
+
+
+def load_cached_arrays():
+    """Load arrays saved by step1_build_arrays, skipping clustering."""
+    cache_dir = os.path.join(RESULTS_DIR, 'cached_arrays')
+    scans_path = os.path.join(cache_dir, 'scans.npy')
+
+    if not os.path.exists(scans_path):
+        print(f'  ✗ No cached arrays found at {cache_dir}/')
+        print('    Run without --step first to generate them.')
+        return None, None, None, None
+
+    print(f'\n══ Loading cached arrays from {cache_dir}/ ══')
+    scans   = np.load(os.path.join(cache_dir, 'scans.npy'))
+    masks   = np.load(os.path.join(cache_dir, 'masks.npy'))
+    targets = np.load(os.path.join(cache_dir, 'targets.npy'))
+    with open(os.path.join(cache_dir, 'display_labels.txt')) as f:
+        display_labels = [line.strip() for line in f if line.strip()]
+
+    print(f'  Scans  : {scans.shape}')
+    print(f'  Masks  : {masks.shape}')
+    print(f'  Labels : {targets.shape}')
+    return scans, masks, targets, display_labels
 
 
 # ╔═══════════════════════════════════════════════════════════════════════════════╗
@@ -855,14 +888,20 @@ def main():
     parser = argparse.ArgumentParser(
         description='Hemorrhage segmentation: spectral clustering + adaptive ROI + U-Net')
     parser.add_argument('--step', type=int, default=1,
-                        help='Step to start from (1-5). Use 5 for eval only.')
+                        help='Step to start from (1-5). Use 2 to skip clustering, 5 for eval only.')
     args = parser.parse_args()
 
     if args.step == 5:
         step5_only()
         return
 
-    scans, masks, labels, display_labels = step1_build_arrays()
+    # Step 1: build arrays (or load from cache)
+    if args.step <= 1:
+        scans, masks, labels, display_labels = step1_build_arrays()
+    else:
+        scans, masks, labels, display_labels = load_cached_arrays()
+        if scans is None:
+            return
 
     (X_train, M_train, y_train,
      X_val, M_val, y_val,
