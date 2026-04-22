@@ -1,0 +1,2 @@
+test_loss,test_accuracy,test_mean_iou,test_sensitivity,test_specificity,test_precision,test_f1_score,test_dice,total_tp,total_fp,total_fn,total_tn,test_samples
+3.503164,0.997135,0.498782,0.447651,0.999396,0.753011,0.5615,0.5615,253660,83201,312987,137631112,2110

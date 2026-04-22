@@ -1,0 +1,33 @@
+══════════════════════════════════════════════════════
+  TEST SET RESULTS
+══════════════════════════════════════════════════════
+
+  Total test samples:     2110
+  With hemorrhage:        932
+  Without hemorrhage:     1178
+
+── Overall metrics ──
+  Loss:                   3.5032
+  Pixel accuracy:         0.9971  (99.71%)
+  Mean IoU:               0.4988
+
+── Pixel-level metrics (aggregated across all test images) ──
+  Sensitivity (recall):   0.4477  (TP / (TP + FN) — how much hemorrhage was found)
+  Specificity:            0.9994  (TN / (TN + FP) — how much background was correct)
+  Precision:              0.7530  (TP / (TP + FP) — how much of predicted is real)
+  F1 / Dice:              0.5615  (harmonic mean of precision and sensitivity)
+  True positives:         253,660
+  False positives:        83,201
+  False negatives:        312,987
+  True negatives:         137,631,112
+
+── Hemorrhage samples only ──
+  Mean hemorrhage IoU:    0.3623
+  Median hemorrhage IoU:  0.3058
+  Mean precision:         0.7378
+  Mean recall:            0.4388
+
+── False positive check (normal samples) ──
+  Normal samples with false positives: 106 / 1178
+
+══════════════════════════════════════════════════════

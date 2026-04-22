@@ -34,7 +34,6 @@ sys.path.insert(0, BASE_DIR)
 from hemorrhage_segmentation_unet import (
     step1_build_arrays, build_unet, MyMeanIOU,
     create_mask, show_predictions, dice_bce_loss,
-    predict_two_pass,
     IMG_SIZE, CHANNELS, OUTPUT_CLASSES, BATCH_SIZE,
     RANDOM_SEED, RESULTS_DIR,
 )
@@ -47,14 +46,14 @@ tf.random.set_seed(RANDOM_SEED)
 
 
 def compute_per_sample_iou(model, images, masks_q):
-    """Compute IoU for each individual test image using two-pass prediction."""
+    """Compute IoU for each individual test image."""
     results = []
     for i in range(len(images)):
-        image_2ch = images[i]
+        img = images[i:i+1]
         true = masks_q[i].squeeze()
 
-        # Two-pass prediction (full image + ROI patches)
-        pred = predict_two_pass(model, image_2ch)
+        pred_logits = model.predict(img, verbose=0)
+        pred = tf.argmax(pred_logits, axis=-1).numpy().squeeze()
 
         # IoU for hemorrhage class (class 1)
         intersection = np.sum((pred == 1) & (true == 1))
