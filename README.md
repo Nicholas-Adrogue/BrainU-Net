@@ -278,25 +278,66 @@ The visualization tool displays side-by-side:
 
 ## 11. How to Run
 
-### Step 1 — Generate CLIP embeddings
+### Full Pipeline
+
+Run the complete segmentation and classification workflow:
+
+```bash
+cd /path/to/Project
+python hemorrhage_segmentation_unet.py
+```
+
+### Segmentation Module
+
+#### Full segmentation pipeline (all steps):
+```bash
+python hemorrhage_segmentation_unet.py
+```
+
+#### Skip data loading (use cached arrays from previous run):
+```bash
+python hemorrhage_segmentation_unet.py --step 2
+```
+
+#### Evaluation only (reload saved model):
+```bash
+python hemorrhage_segmentation_unet.py --step 4
+```
+
+#### Hyperparameter grid search:
+Tests multiple Dice weight / BCE foreground weight combinations. Edit the `GRID` list at the top of `grid_search.py` to change configurations.
+```bash
+python grid_search.py
+```
+Results are saved to `grid_results/summary.csv` with per-configuration subfolders containing models, training curves, prediction images, and epoch-by-epoch history.
+
+#### Detailed test evaluation:
+Loads the trained model and produces comprehensive test metrics including per-sample IoU, sensitivity, specificity, precision, F1/Dice, and a pixel-level confusion matrix.
+```bash
+python evaluate_test.py
+```
+
+### Classification Module
+
+#### Step 1 — Generate CLIP embeddings
 
 ```bash
 python clip_hints.py
 ```
 
-### Step 2 — Generate arrow hint maps
+#### Step 2 — Generate arrow hint maps
 
 ```bash
 python arrow_hints.py
 ```
 
-### Step 3 — Train segmentation and classifier
+#### Step 3 — Train segmentation and classifier
 
 ```bash
 python pretrain.py
 ```
 
-### Step 4 — Run ablation study
+#### Step 4 — Run ablation study
 
 ```bash
 # Quick mode
@@ -306,7 +347,7 @@ python ablation.py
 python ablation.py --full
 ```
 
-### Step 5 — Visualize results
+#### Step 5 — Visualize results
 
 ```bash
 python visualize_hints.py
