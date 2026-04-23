@@ -133,12 +133,11 @@ Train / Validation / Test split with a deterministic fixed seed.
 Compound loss combining three terms:
 
 ```
-Loss = Focal + Dice + 0.5 × IoU
+Loss = WCE + Dice * W_D
 ```
 
-- Adaptive ROI focal loss
-- Dice loss
-- IoU loss
+- Dice loss (weighted)
+- Weighted cross-entropy loss
 
 ### 5.3 Training
 
