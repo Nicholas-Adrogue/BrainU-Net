@@ -1,233 +1,380 @@
-Intracranial Hemorrhage Detection & Segmentation
+# Intracranial Hemorrhage Detection and Segmentation  
 Multi-Modal Deep Learning with U-Net, Hint Maps, and CLIP
-Overview
-This project implements a comprehensive deep learning system for intracranial hemorrhage analysis from CT scans, combining:
-Pixel-level segmentation (U-Net)
-Multi-label classification (6 hemorrhage types)
-Spatial reasoning via engineered hint maps
-Semantic understanding via CLIP embeddings
-Systematic ablation studies for model validation
-Originally developed as a segmentation pipeline, the system has evolved into a multi-branch architecture where segmentation outputs are reused as structured features for classification.
-System Architecture
-The final classifier uses a three-branch fusion model:
-1. CT Backbone (Visual Features)
-Model: DenseNet121
-Input: 4 CT window channels:
-Bone
-Brain
-Max contrast
-Subdural
-Initialization:
-RadImageNet pretrained weights (radiology-specific)
-2. Hint Branch (Spatial Guidance)
-Three spatial maps are stacked as input:
-Segmentation mask
-From U-Net or radiologist annotations
-Symmetry map
-Highlights left-right asymmetry in brain
-Arrow map
-Points toward predicted hemorrhage centroids
-Processed via a small CNN → pooled → dense representation
-3. CLIP Branch (Semantic Context)
-Model: openai/clip-vit-base-patch32
-Output: 512-dimensional embedding per image
-Captures global semantic structure of CT scans
-Fusion
-All three branches are concatenated and passed through an MLP:
+
+---
+
+## 1. Overview
+
+This repository implements a full end-to-end system for **intracranial hemorrhage analysis from CT scans**, combining:
+
+- Pixel-level **segmentation** (U-Net)
+- Multi-label **classification** (6 hemorrhage types)
+- Structured **spatial reasoning** via engineered hint maps
+- Global **semantic understanding** via CLIP embeddings
+- Systematic **ablation studies** for validation
+
+The project evolved from a **pure segmentation pipeline** into a **multi-branch classification system** where segmentation outputs are reused as structured features.
+
+### Key Insight
+
+Segmentation serves two roles:
+
+1. **Standalone task** — detecting hemorrhage regions  
+2. **Feature generator** — feeding spatial priors into the classifier  
+
+---
+
+## 2. System Architecture
+
+The final model is a **three-branch fusion architecture**:
+
+### 2.1 CT Backbone (Visual Branch)
+
+- Model: DenseNet121
+- Input: 4-channel CT windows
+  - Bone
+  - Brain
+  - Max contrast
+  - Subdural
+- Initialization:
+  - RadImageNet pretrained weights (preferred)
+  - Falls back to ImageNet if unavailable
+
+### 2.2 Hint Branch (Spatial Guidance)
+
+Input: 3-channel spatial tensor
+
+- Segmentation mask (U-Net or ground truth)
+- Symmetry map (left-right deviation)
+- Arrow map (directional attention)
+
+Processed via:
+- Convolutional layers
+- Global pooling
+- Dense projection
+
+### 2.3 CLIP Branch (Semantic Context)
+
+- Model: openai/clip-vit-base-patch32
+- Output: 512-dimensional embedding
+- Captures global image semantics
+
+### 2.4 Fusion
+
+All branches are concatenated:
 [CT features] + [Hint features] + [CLIP embedding]
-                ↓
-           Dense layers
-                ↓
-        Multi-label output (6 classes)
-Relationship Between Segmentation and Classification
-This repository contains two tightly coupled pipelines:
-Pipeline A — Segmentation (Original Core)
-CT → annotations → U-Net → hemorrhage masks
-Pipeline B — Classification (Extended System)
+↓
+Dense layers
+↓
+Multi-label output (6 classes)
+
+---
+
+## 3. Pipeline Structure
+
+### 3.1 Segmentation Pipeline
+CT → preprocessing → annotations → U-Net → segmentation masks
+
+### 3.2 Classification Pipeline
 CT + (segmentation + symmetry + arrows) + CLIP → classifier
-Key Insight:
-The segmentation model is both:
-a standalone task
-AND a feature generator for classification
-Segmentation Pipeline (Original System)
-Overview
-A modified U-Net performs pixel-level segmentation of hemorrhage regions from CT scans.
-Data Pipeline
-Multi-Window Channel Stacking
-Each scan is loaded as a 4-channel image:
+
+### 3.3 Integration
+
+- Segmentation outputs are reused as:
+  - Direct input (mask channel)
+  - Indirect input (arrow maps)
+- Classification depends on:
+  - Raw image features
+  - Spatial priors
+  - Semantic embeddings
+
+---
+
+## 4. Data Pipeline
+
+### 4.1 Multi-Window CT Stacking
+
+Each scan is converted into a 4-channel tensor:
 channels = [bone, brain, max_contrast, subdural]
-merged = np.stack(channels, axis=-1)
-Annotation Parsing
-Polygon annotations parsed from CSV files
-Rasterized into binary masks using cv2.drawContours
-Masks resized with nearest-neighbor interpolation (critical fix)
-Skull Stripping (Contour-Based)
-Thresholding + contour detection
-Largest contour used as brain region
-Background removed
-Data Cleaning
-Excludes:
-Known corrupt files
-User-provided flagged.txt
-Ensures training stability
-Train / Val / Test Split
-70% / 10% / 20%
-Fixed random seed for reproducibility
-Class Balancing
-Median-based balancing:
-Downsample majority classes
-Augment minority classes
-Augmentations:
-Rotation (±40°)
-Shifts (±20%)
-Shear, zoom, flips
-U-Net Architecture
-Encoder: DenseNet121 (RadImageNet pretrained)
-Decoder:
-Skip connections
-Attention gates
-Input: 256×256×4
-Output: 256×256×1
-Segmentation Loss
-Combined loss:
-Adaptive ROI Focal + Dice + IoU
-Focal loss → handles class imbalance
-Dice loss → enforces overlap
-IoU loss → penalizes false positives
-Segmentation Metrics
-Dice coefficient (primary)
-IoU
-Precision / Recall
-Pixel confusion matrix
-Hint Generation System
-Hint maps provide structured spatial priors to the classifier.
-1. Segmentation Hint
-From:
-U-Net predictions
-or ground truth masks
-Represents hemorrhage location directly
-2. Symmetry Hint
-Computed via left-right difference:
+image = np.stack(channels, axis=-1)
+
+
+### 4.2 Annotation Parsing
+
+- Polygon annotations loaded from CSV
+- Converted into binary masks using contour drawing
+- Supports nested annotation formats
+
+### 4.3 Mask Creation
+
+- Rasterization via OpenCV
+- Binary segmentation masks
+- Resized to model resolution
+
+### 4.4 Quality Filtering
+
+Low-quality slices are removed using:
+
+- Brain content ratio
+- Intensity variance
+
+### 4.5 Dataset Splitting
+
+- Train / Validation / Test split
+- Deterministic (fixed seed)
+
+---
+
+## 5. Segmentation Module
+
+Implemented in: :contentReference[oaicite:0]{index=0}
+
+### 5.1 Architecture
+
+- Encoder: DenseNet121 (RadImageNet)
+- Decoder:
+  - Skip connections
+  - Attention gates
+  - Spatial dropout
+
+Input: `(256, 256, 4)`  
+Output: `(256, 256, 1)`
+
+### 5.2 Loss Function
+
+Compound loss:
+
+- Adaptive ROI focal loss
+- Dice loss
+- IoU loss
+Loss = Focal + Dice + 0.5 * IoU
+
+
+### 5.3 Training Behavior
+
+- Full-resolution training (256×256)
+- Online augmentation:
+  - Flips
+  - Brightness
+- Early stopping + LR scheduling
+
+---
+
+## 6. Hint Generation
+
+### 6.1 Segmentation Hint
+
+- Source:
+  - U-Net predictions OR ground truth
+- Represents hemorrhage location directly
+
+---
+
+### 6.2 Symmetry Map
+
+Computed as:
 abs(brain - flipped_brain)
-Weighted combination:
-Brain window (70%)
-Bone window (30%)
-Highlights abnormal asymmetry
-3. Arrow Hint
-Generated via:
+
+
+- Weighted:
+  - Brain window: 70%
+  - Bone window: 30%
+- Highlights asymmetry (key hemorrhage signal)
+
+---
+
+### 6.3 Arrow Maps
+
+Generated by: :contentReference[oaicite:1]{index=1}
+
+Pipeline:
 CT → U-Net → predicted mask → contours → centroids → arrows
-Each arrow:
-Starts from image edge
-Points toward hemorrhage center
-Saved as:
+
+- Arrows originate from image edges
+- Point toward hemorrhage centers
+- Saved as:
 ./output/arrow_hints/<id>.npy
-CLIP Embeddings
-CLIP replaces earlier LLM-based approaches:
-Fast (~15 minutes)
-Produces 512-d embeddings
-Encodes global semantic structure
-Saved as:
+
+
+---
+
+## 7. CLIP Embeddings
+
+Generated by: :contentReference[oaicite:2]{index=2}
+
+### 7.1 Purpose
+
+- Replace slow LLM-based approaches
+- Provide semantic understanding
+
+### 7.2 Properties
+
+- 512-dimensional vectors
+- Computed from CT images
+- Captures global structure
+
+### 7.3 Storage
 ./output/clip_embeddings.npz
-Classification Model
-Input
-CT image (4 channels)
-Hint maps (3 channels)
-CLIP embedding (512-d)
-Loss Functions
-Weighted Binary Cross-Entropy
+
+Contains:
+- `stems`
+- `embeddings`
+
+---
+
+## 8. Classification Model
+
+Implemented in: :contentReference[oaicite:3]{index=3}
+
+### 8.1 Inputs
+
+- CT image (4-channel)
+- Hint maps (3-channel)
+- CLIP embedding (512-d)
+
+### 8.2 Loss Function
+
+Primary:
+
+- Weighted Binary Cross-Entropy
+
 Optional:
-Soft Macro F1 Loss
+
+- Soft Macro F1 Loss
 Loss = BCE + λ * SoftF1
-Training Strategy
-Phase 1
-Backbone frozen
-Train classifier head
-Phase 2
-Unfreeze top layers
-Fine-tune
-Class Imbalance Handling
-Per-class weighting
-Oversampling
-Epidural-specific augmentation
-Soft F1 optimization
-Ablation Study Framework
-ablation.py enables controlled experiments.
-What It Tests
-Hint types:
-bbox vs symmetry vs none
-Augmentation strategies
-Loss functions (BCE vs BCE+F1)
-Learning rates
-Training schedules
-Data filtering
-Example Configs
-A_baseline — original strong model
-B_symm — symmetry hints only
-N1_no_hints — remove hint branch
-Z* — best combined configs
-Outputs
-Macro F1
-Hamming loss
-Per-class F1
-Optimal thresholds
-Evaluation Metrics
+
+
+### 8.3 Training Strategy
+
+#### Phase 1
+- Backbone frozen
+- Train classifier head
+
+#### Phase 2
+- Unfreeze top layers
+- Fine-tune model
+
+### 8.4 Class Imbalance Handling
+
+- Per-class weighting
+- Oversampling
+- Epidural-specific augmentation
+- Soft F1 regularization
+
+---
+
+## 9. Ablation Study Framework
+
+Implemented in: :contentReference[oaicite:4]{index=4}
+
+### 9.1 Purpose
+
+Systematically evaluate:
+
+- Hint types
+- Augmentation strategies
+- Loss functions
+- Learning rates
+- Training schedules
+
+### 9.2 Example Configurations
+
+- `A_baseline` — full system
+- `B_symm` — symmetry-only hints
+- `N1_no_hints` — remove hint branch
+- `Z*` — optimized combinations
+
+### 9.3 Outputs
+
+- Macro F1
+- Hamming loss
+- Per-class F1
+- Optimal thresholds
+
+---
+
+## 10. Visualization
+
+Tool: :contentReference[oaicite:5]{index=5}
+
+Displays:
+
+- CT scan
+- Ground truth mask
+- U-Net prediction
+- Symmetry map
+- Arrow map
+- Combined overlays
+
+---
+
+## 11. How to Run (End-to-End)
+
+### Step 1 — Generate CLIP embeddings
+
+```bash```
+python clip_hints.py
+
+Step 2 — Generate arrow hints
+```bash```
+python arrow_hints.py
+
+Step 3 — Train segmentation + classifier
+python pretrain.py
+
+Step 4 — Run ablation study
+Quick mode:
+python ablation.py
+Full training:
+python ablation.py --full
+
+Step 5 — Visualize results
+python visualize_hints.py
+
+12. Directory Structure
+dcms/
+    segmentation/
+    renders/
+    02_Contour/
+
+output/
+    models/
+    figures/
+    arrow_hints/
+    arrow_viz/
+    clip_embeddings.npz
+
+13. Key Design Decisions
+Use RadImageNet for domain-specific initialization
+Replace LLMs with CLIP for speed and robustness
+Introduce hint maps for spatial reasoning
+Use multi-branch fusion instead of single-stream CNN
+Treat segmentation as both:
+Prediction task
+Feature extraction module
+14. Evaluation Metrics
 Classification
 Macro F1 (primary)
 Hamming loss
-Precision / Recall / AUC
+Precision / Recall
+AUC
 Per-class F1
 Segmentation
 Dice coefficient
 IoU
 Pixel accuracy
-Confusion matrix
-How to Run
-1. Generate CLIP embeddings
-python clip_hints.py
-2. Generate arrow hints
-python arrow_hints.py
-3. Train models
-python pretrain.py
-4. Run ablation study
-python ablation.py
-Quick mode:
-python ablation.py
-Full training:
-python ablation.py --full
-🔍 Visualization
-python visualize_hints.py
-Displays:
-CT scan
-Ground truth
-U-Net prediction
-Symmetry map
-Arrow map
-Composite overlays
-Key Bugs Found and Fixed
-Mask interpolation bug
-Bilinear → nearest-neighbor
-Incorrect grayscale conversion
-Fixed incorrect BGR weighting
-Overlay visualization artifacts
-Fixed color blending issues
-Experimental Approaches (Removed)
-Spectral Clustering
-Clustered pixels by intensity
-Failed due to lack of spatial context
-Adaptive ROI
-Two-pass inference
-Unreliable due to preprocessing issues
-Key Insights
-Hint maps significantly improve performance
-Symmetry is a strong signal for hemorrhage
-CLIP adds global context missing from CNNs
-Aggressive augmentation helps small datasets
-Soft F1 stabilizes class imbalance
-Summary
-This project evolved from a U-Net segmentation model into a multi-modal medical vision system:
-Segmentation → spatial grounding
-Hint maps → structured attention
-CLIP → semantic understanding
-DenseNet → feature extraction
-Ablation → scientific validation
-All combined into a unified, extensible framework for intracranial hemorrhage analysis.
+15. Summary
+This system represents a progression from:
+U-Net segmentation
+        ↓
+Spatial feature extraction
+        ↓
+Multi-modal classification
+
+Combining:
+Segmentation (spatial grounding)
+Hint maps (structured attention)
+CLIP (semantic context)
+DenseNet (visual features)
+Ablation (scientific validation)
+The result is a unified, extensible framework for intracranial hemorrhage detection and analysis.
